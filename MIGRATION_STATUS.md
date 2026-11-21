@@ -102,7 +102,7 @@ mais de 40 camadas). Na versão Godot essa cadeia virou chamadas explícitas, em
 ### Interface, áudio e persistência
 - [x] Tela inicial, EVOLUÇÃO, pausa (continuar, salvar, carregar, opções, reiniciar com confirmação, tela inicial), TERMINATED, vitória, toasts
 - [x] Opções: Efeitos (qualidade, intensidade, rastro, volumes, 11 interruptores), Música, Controles, Sobre (recordes, créditos, modo dev), Diagnóstico, Chefes e Arenas (dev)
-- [~] Controles de toque (joystick dinâmico, segundo analógico de mira, ROLAR/APARAR/II): implementados; **não testados em aparelho**
+- [~] Controles de toque (joystick dinâmico, segundo analógico de mira, ROLAR/APARAR/II): lógica testada com eventos de toque injetados no viewport; **falta teste em aparelho** (ergonomia, multitoque real)
 - [x] 52 SFX sintetizados offline em thread (mesmas ondas, envelopes e atrasos), com tiers, *duck* e limite de vozes do HTML
 - [x] Trilha real com diretor por momento (título, setores, cada chefe, fase 1 do Vesperon, Fenda, vitória, fim), crossfade com os tempos do HTML, memória da posição, *duck* na pausa, escolha da faixa por momento, prévia
 - [x] Ambiência `cinza` (Vesperon): ruído filtrado + bordão + estalos, loop sem emenda
@@ -164,8 +164,9 @@ Ambiente: Linux, Godot 4.4.1 oficial; headless para lógica; Xvfb + Mesa llvmpip
 | Teste | Como | Resultado |
 |-------|------|-----------|
 | Importação e compilação de todos os scripts/shaders | `godot --headless --import` | **0 erros** |
-| Suíte funcional (`tests/run_tests.sh`) | headless, `--fixed-fps 60`, jogo real quadro a quadro | **71/71 passam, 0 SCRIPT ERROR** |
+| Suíte funcional (`tests/run_tests.sh`) | headless, `--fixed-fps 60`, jogo real quadro a quadro | **77/77 passam, 0 SCRIPT ERROR** |
 | — inimigos, dano/escudo, evoluções, nível/combo | unidades dentro do jogo | ok |
+| — toque: analógico de movimento, mira manual com segundo dedo, soltar | eventos `InputEventScreenTouch/Drag` injetados | ok |
 | — áudio: síntese, 52 SFX, 17 faixas, loops, trilha por momento | | ok |
 | — salvar/carregar com checksum; arquivo adulterado cai para o backup | | ok |
 | — Contenção: arte 720×880, 20 obstáculos, barril explode | | ok |

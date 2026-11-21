@@ -59,6 +59,7 @@ func _run() -> void:
 	await _t_shield()
 	await _t_upgrades()
 	await _t_level_and_combo()
+	await _t_touch()
 	await _t_synth_and_tracks()
 	await _t_save_roundtrip()
 	await _t_contencao()
@@ -154,6 +155,53 @@ func _t_level_and_combo() -> void:
 	Events.enemy_killed.emit({"x": 0.0, "y": 0.0, "color": Color.RED, "boss": false, "tough": false, "type": "basic", "elite": false})
 	check(game.combo.n == 1 and game.score == sc + 11, "abate soma combo e pontos (10 × (1 + 1/20))", "score=%d" % (game.score - sc))
 	await frames(1)
+
+
+func _touch(idx: int, pos: Vector2, pressed: bool) -> void:
+	var e := InputEventScreenTouch.new()
+	e.index = idx
+	e.position = pos
+	e.pressed = pressed
+	Input.parse_input_event(e)
+
+
+func _drag(idx: int, pos: Vector2) -> void:
+	var e := InputEventScreenDrag.new()
+	e.index = idx
+	e.position = pos
+	Input.parse_input_event(e)
+
+
+func _t_touch() -> void:
+	_out("[toque (eventos injetados no viewport)]")
+	game.paused = false
+	main.ui.lvl_modal.visible = false
+	var vw: float = game.vw
+	var vh: float = game.vh
+	var x0 := game.player.x
+	_touch(0, Vector2(vw * 0.2, vh * 0.6), true)
+	await frames(1)
+	_drag(0, Vector2(vw * 0.2 + 60.0, vh * 0.6))
+	await frames(20)
+	check(game.joy.active and game.joy.v.x > 0.95, "arrastar à esquerda cria o analógico de movimento", str(game.joy.v))
+	check(game.player.x > x0 + 20.0, "o analógico move o Nick", "dx=%.1f" % (game.player.x - x0))
+	_touch(0, Vector2(vw * 0.2 + 60.0, vh * 0.6), false)
+	await frames(2)
+	check(not game.joy.active and game.joy.v == Vector2.ZERO, "soltar o dedo para o movimento")
+	var aim0: String = Settings.s.aim
+	Settings.s.aim = "man"
+	game.enemies.clear()
+	var n0 := game.projectiles.size()
+	_touch(1, Vector2(vw * 0.8, vh * 0.5), true)
+	await frames(1)
+	_drag(1, Vector2(vw * 0.8, vh * 0.5 - 60.0))
+	await frames(70)
+	check(game.aim.on and game.aim.fire and absf(game.aim.ang + PI / 2.0) < 0.05, "mira manual: arrastar à direita aponta e atira", "ang=%.2f" % game.aim.ang)
+	check(game.projectiles.size() > n0, "a mira manual dispara mesmo sem inimigos")
+	_touch(1, Vector2(vw * 0.8, vh * 0.5 - 60.0), false)
+	await frames(2)
+	check(not game.aim.on, "soltar o dedo para de mirar")
+	Settings.s.aim = aim0
 
 
 func _t_synth_and_tracks() -> void:
