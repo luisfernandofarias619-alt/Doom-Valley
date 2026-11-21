@@ -13,6 +13,8 @@ func _ready() -> void:
 	# testes automatizados (tests/run_tests.gd) podem iniciar a partida direto pela linha de comando
 	if "--autostart" in OS.get_cmdline_user_args():
 		ui.start_game()
+	if "--bench" in OS.get_cmdline_user_args():
+		add_child(load("res://tests/bench.gd").new())
 	if "--test" in OS.get_cmdline_user_args():
 		var tr = load("res://tests/run_tests.gd").new()
 		tr.name = "Tests"

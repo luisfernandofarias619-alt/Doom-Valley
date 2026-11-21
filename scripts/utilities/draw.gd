@@ -8,10 +8,25 @@ static func segs_for(r: float) -> int:
 	return clampi(int(r * 0.6), 12, 72)
 
 
+## Círculo cheio. Até 64 px de raio usa uma textura de disco (uma chamada, sem gerar polígono, em lote).
 static func circle(ci: CanvasItem, p: Vector2, r: float, col: Color) -> void:
 	if r <= 0.0 or col.a <= 0.0:
 		return
-	ci.draw_circle(p, r, col)
+	if r <= 64.0 and Assets.disc != null:
+		ci.draw_texture_rect(Assets.disc, Rect2(p.x - r, p.y - r, r * 2.0, r * 2.0), false, col)
+	else:
+		ci.draw_circle(p, r, col)
+
+
+static var _units := {}
+
+
+## Polígono regular de raio 1 (em cache): use com draw_set_transform para escalar e girar.
+static func unit(n: int, a: float = 0.0) -> PackedVector2Array:
+	var k := Vector2(n, a)
+	if not _units.has(k):
+		_units[k] = reg(n, 1.0, a)
+	return _units[k]
 
 
 static func ring(ci: CanvasItem, p: Vector2, r: float, col: Color, w: float = 1.0) -> void:

@@ -902,6 +902,7 @@ func _tab_diag() -> void:
 		var g := game
 		l.text = "FPS medido: %d\nPartículas (jogo e FX): %d\nProjéteis: %d\nInimigos: %d\nEfeitos ativos: %d\nPerigos: %d\nQualidade: %s" % [Engine.get_frames_per_second(), g.gp.n + g.fx.n, g.projectiles.size() + g.enemy_projectiles.size(), g.enemies.size(), g.fx.E.size(), g.hazards.list.size(), ["Baixa", "Média", "Alta"][int(Settings.s.q)]]
 	upd.call()
+	opt_body.add_child(_ghost("Ver hitboxes", func(): game.show_hitboxes = not game.show_hitboxes))
 	var t := Timer.new()
 	t.wait_time = 0.5
 	t.autostart = true

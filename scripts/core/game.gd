@@ -58,6 +58,7 @@ var vw := 1280.0
 var vh := 720.0
 var mir_x := false
 var fp_active := false
+var show_hitboxes := false   # Diagnóstico → Ver hitboxes
 
 # rolamento / aparar
 var rl := {"on": false, "t": 0.0, "dx": 1.0, "dy": 0.0, "cd": 0.0, "gh": []}
@@ -132,6 +133,7 @@ func start_classic(load_data: Dictionary = {}) -> void:
 	player.x = vw / 2.0
 	player.y = vh / 2.0
 	arena.exit_now()
+	flags = {}   # como no HTML (NF.start zera V6.flags): rolamento e aparar voltam a exigir os chefes
 	if not load_data.is_empty():
 		_apply_save(load_data)
 	sfx("start")
@@ -215,7 +217,12 @@ func _process(delta: float) -> void:
 				$"../AnomaliaFP".fp_update(dt)
 				_post(dt)
 		elif not _hitstop(dt):
-			_update(dt)
+			if DrawLayerProf.on():
+				var t0 := Time.get_ticks_usec()
+				_update(dt)
+				DrawLayerProf.add("_update", Time.get_ticks_usec() - t0)
+			else:
+				_update(dt)
 	shk *= pow(0.0005, dt)
 	if shk < 0.1:
 		shk = 0.0
@@ -323,8 +330,36 @@ func _home(p: Projectile, dt: float) -> void:
 		p.vy = sin(na) * s
 
 
+const GRID := 96.0
+var _grid := {}
+
+
+## Grade espacial dos inimigos (reconstruída a cada quadro): cada tiro testa só as células vizinhas.
+## Os candidatos são processados na ordem do array de inimigos, então a prioridade dos acertos é a mesma
+## do laço original (o primeiro inimigo da lista que o tiro toca).
+func _build_grid() -> void:
+	_grid.clear()
+	for i in enemies.size():
+		var e := enemies[i]
+		if e.vis == 0:
+			continue
+		var r := e.radius
+		var x0 := floori((e.x - r) / GRID)
+		var x1 := floori((e.x + r) / GRID)
+		var y0 := floori((e.y - r) / GRID)
+		var y1 := floori((e.y + r) / GRID)
+		for gy in range(y0, y1 + 1):
+			for gx in range(x0, x1 + 1):
+				var k := Vector2i(gx, gy)
+				if _grid.has(k):
+					(_grid[k] as Array).append(i)
+				else:
+					_grid[k] = [i]
+
+
 func _update_projectiles(dt: float) -> void:
 	var W := world_rect()
+	_build_grid()
 	for i in range(projectiles.size() - 1, -1, -1):
 		var p := projectiles[i]
 		if p.color == Color("#eeff00") and not p.nerfed:   # ajuste da Sentinela (torreta) do original
@@ -334,11 +369,29 @@ func _update_projectiles(dt: float) -> void:
 		if p.x < W.position.x or p.x > W.end.x or p.y < W.position.y or p.y > W.end.y:
 			projectiles.remove_at(i)
 			continue
-		for e in enemies:
+		var cand: Array = []
+		var cx := floori(p.x / GRID)
+		var cy := floori(p.y / GRID)
+		for gy in range(cy - 1, cy + 2):
+			for gx in range(cx - 1, cx + 2):
+				var k := Vector2i(gx, gy)
+				if _grid.has(k):
+					for idx in _grid[k]:
+						if not cand.has(idx):
+							cand.append(idx)
+		if cand.is_empty():
+			continue
+		cand.sort()
+		for idx in cand:
+			if idx >= enemies.size():
+				continue
+			var e := enemies[idx]
 			if p.hit.has(e) or e.vis == 0:
 				continue
-			var d := Vector2(p.x - e.x, p.y - e.y).length()
-			if d < p.radius + e.radius:
+			var dx := p.x - e.x
+			var dy := p.y - e.y
+			var rr := p.radius + e.radius
+			if dx * dx + dy * dy < rr * rr:
 				var dmg := hit(p, e, player.damage)
 				e.hp -= dmg if dmg != 0.0 else player.damage
 				e.hit_timer = 0.1
@@ -1449,6 +1502,10 @@ func _draw_fx_top(c: CanvasItem) -> void:
 	if slow_t > 0.0:
 		Draw.dashed_ring(c, Vector2(player.x, player.y), player.radius + 9.0, 5.0, 5.0, 0.0, Color(0.49, 1, 0.42, 0.6), 2.0)
 	hazards.draw(c)
+	if show_hitboxes:
+		for e in enemies:
+			Draw.ring(c, Vector2(e.x, e.y), e.radius, Color.RED, 1.0)
+		Draw.ring(c, Vector2(player.x, player.y), player.radius, Color.CYAN, 1.0)
 	enc.draw_top(c)
 	arena.draw_after(c)
 	_draw_parry(c)

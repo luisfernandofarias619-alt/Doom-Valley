@@ -126,10 +126,11 @@ static func draw(g, c: CanvasItem, e: Enemy) -> void:
 			Draw.poly(c, PackedVector2Array([Vector2(r * 1.5, 0), Vector2(-r, r * 0.8), Vector2(-r * 0.4, 0), Vector2(-r, -r * 0.8)]), col)
 			c.draw_rect(Rect2(-r * 3.0, -1.5, r * 2.0, 3.0), Draw.alpha(col, 0.35))
 		"tank":
-			c.draw_set_transform(o, 0.0, Vector2(sc, sc))
-			var oc := Draw.reg(8, r, 0.3927)
+			c.draw_set_transform(o, 0.0, Vector2(sc, sc) * r)
+			var oc := Draw.unit(8, 0.3927)
 			Draw.poly(c, oc, Draw.alpha(col, 0.25))
-			Draw.poly_stroke(c, oc, col, 4.0)
+			Draw.poly_stroke(c, oc, col, 4.0 / r)
+			c.draw_set_transform(o, 0.0, Vector2(sc, sc))
 			c.draw_set_transform(o, t * 0.8, Vector2(sc, sc))
 			for i in 4:
 				Draw.arc(c, Vector2.ZERO, r * 0.62, i * 1.5708 + 0.3, i * 1.5708 + 1.2, col, 3.0)
@@ -150,8 +151,9 @@ static func draw(g, c: CanvasItem, e: Enemy) -> void:
 			c.draw_set_transform(o, t * 6.0, Vector2.ONE)
 			Draw.poly(c, PackedVector2Array([Vector2(r, 0), Vector2(-r * 0.6, r * 0.7), Vector2(-r * 0.6, -r * 0.7)]), col)
 		"guard":
+			c.draw_set_transform(o, e.ang, Vector2(sc, sc) * r * 0.7)
+			Draw.poly(c, Draw.unit(8), col)
 			c.draw_set_transform(o, e.ang, Vector2(sc, sc))
-			Draw.poly(c, Draw.reg(8, r * 0.7, 0.0), col)
 			Draw.arc(c, Vector2.ZERO, r, -1.1, 1.1, col, 6.0)
 			Draw.circle(c, Vector2(-r * 0.1, 0), r * 0.22, Color("#050508"))
 		"gunner":
@@ -160,8 +162,9 @@ static func draw(g, c: CanvasItem, e: Enemy) -> void:
 			c.draw_rect(Rect2(r * 0.2, -3, r * 1.1, 6), col)
 		"rifter":
 			var al := 0.35 + 0.65 * absf(sin(t * 40.0)) if e.bl > 0.0 else 1.0
+			c.draw_set_transform(o, t * 0.8, Vector2(sc, sc) * r)
+			Draw.poly(c, Draw.unit(4), Draw.alpha(col, al))
 			c.draw_set_transform(o, t * 0.8, Vector2(sc, sc))
-			Draw.poly(c, Draw.reg(4, r, 0.0), Draw.alpha(col, al))
 			c.draw_line(Vector2(-r, 0), Vector2(r, 0), Color(0.02, 0.02, 0.03, al), 1.5, true)
 			c.draw_line(Vector2(0, -r), Vector2(0, r), Color(0.02, 0.02, 0.03, al), 1.5, true)
 		"leech":
@@ -176,10 +179,12 @@ static func draw(g, c: CanvasItem, e: Enemy) -> void:
 				c.draw_line(Vector2(cos(a), sin(a)) * r * 0.6, Vector2(cos(a), sin(a)) * r, col, 3.0, true)
 				c.draw_line(Vector2(cos(-a), sin(-a)) * r * 0.6, Vector2(cos(-a), sin(-a)) * r, col, 3.0, true)
 		_:
-			c.draw_set_transform(o, t * 0.6, Vector2(sc, sc))
-			Draw.poly(c, Draw.reg(6, r, 0.0), col)
-			Draw.poly(c, Draw.reg(6, r * 0.45, 0.0), Color("#050508"))
-			Draw.poly(c, Draw.reg(3, r * 0.25, 0.0), col)
+			c.draw_set_transform(o, t * 0.6, Vector2(sc, sc) * r)
+			Draw.poly(c, Draw.unit(6), col)
+			c.draw_set_transform(o, t * 0.6, Vector2(sc, sc) * r * 0.45)
+			Draw.poly(c, Draw.unit(6), Color("#050508"))
+			c.draw_set_transform(o, t * 0.6, Vector2(sc, sc) * r * 0.25)
+			Draw.poly(c, Draw.unit(3), col)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
 	if e.elite:
 		# BUG CORRIGIDO: o HTML desenhava o anel em (x,y) depois de transladar para (x,y) (deslocamento dobrado)

@@ -286,8 +286,26 @@ func _t_boss_flow() -> void:
 	await frames(1)
 
 
+func _find_button(n: Node, text: String) -> Button:
+	if n is Button and (n as Button).text == text:
+		return n
+	for ch in n.get_children():
+		var b := _find_button(ch, text)
+		if b:
+			return b
+	return null
+
+
 func _t_fenda() -> void:
-	_out("[Fenda Infinita]")
+	_out("[vitória e Fenda Infinita]")
+	check(main.ui.win_scr.visible, "tela SISTEMA ESTABILIZADO aparece")
+	var again := _find_button(main.ui.win_scr, "JOGAR DE NOVO")
+	check(again != null, "botão JOGAR DE NOVO existe")
+	if again:
+		again.pressed.emit()
+		await frames(3)
+		check(game.active and not game.paused and game.sec == 0 and game.score == 0 and not main.ui.win_scr.visible, "JOGAR DE NOVO reinicia a partida (bug do HTML corrigido)")
+		check(not game.has_unlock("roll"), "novo jogo volta a exigir o Rhino para rolar")
 	main.ui.win_scr.visible = false
 	game.continue_after_victory()
 	var inside := await until(func(): return game.arena.is_fenda(), 120)

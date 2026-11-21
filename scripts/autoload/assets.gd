@@ -18,6 +18,7 @@ var font_mono: SystemFont
 var font_mono_bold: SystemFont
 
 var _radials := {}
+var disc: ImageTexture   # disco branco com borda suavizada (círculos pequenos em lote)
 var _bullets := {}
 
 
@@ -40,11 +41,22 @@ func _ready() -> void:
 		icons[n] = load("res://assets/sprites/icons/%s.png" % n)
 	var ui_names := PackedStringArray(["Segoe UI", "Roboto", "Helvetica", "Arial", "Noto Sans", "DejaVu Sans", "sans-serif"])
 	var mono_names := PackedStringArray(["Consolas", "DejaVu Sans Mono", "Roboto Mono", "Noto Sans Mono", "Courier New", "monospace"])
+	disc = _make_disc(64)
 	font_ui = _sysfont(ui_names, 400)
 	font_ui_bold = _sysfont(ui_names, 700)
 	font_ui_black = _sysfont(ui_names, 900)
 	font_mono = _sysfont(mono_names, 400)
 	font_mono_bold = _sysfont(mono_names, 700)
+
+
+func _make_disc(n: int) -> ImageTexture:
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	var c := n / 2.0
+	for y in n:
+		for x in n:
+			var d := Vector2(x + 0.5 - c, y + 0.5 - c).length()
+			img.set_pixel(x, y, Color(1, 1, 1, clampf(c - d, 0.0, 1.0)))
+	return ImageTexture.create_from_image(img)
 
 
 func _sysfont(names: PackedStringArray, weight: int) -> SystemFont:
