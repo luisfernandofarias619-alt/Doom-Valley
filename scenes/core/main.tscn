@@ -1,0 +1,86 @@
+[gd_scene load_steps=11 format=3 uid="uid://dvmain0000001"]
+
+[ext_resource type="Script" path="res://scripts/core/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/core/game.gd" id="2_game"]
+[ext_resource type="Script" path="res://scripts/core/draw_layer.gd" id="3_layer"]
+[ext_resource type="Shader" path="res://assets/shaders/arena_vignette.gdshader" id="4_vig"]
+[ext_resource type="Script" path="res://scripts/ui/ui.gd" id="5_ui"]
+[ext_resource type="Script" path="res://scripts/bosses/anomalia_fp.gd" id="6_fp"]
+[ext_resource type="Shader" path="res://assets/shaders/darkness.gdshader" id="7_dark"]
+
+[sub_resource type="CanvasItemMaterial" id="add"]
+blend_mode = 1
+
+[sub_resource type="ShaderMaterial" id="vig"]
+shader = ExtResource("4_vig")
+
+[sub_resource type="ShaderMaterial" id="dark"]
+shader = ExtResource("7_dark")
+
+[node name="Main" type="Node"]
+script = ExtResource("1_main")
+
+[node name="Game" type="Node2D" parent="."]
+script = ExtResource("2_game")
+
+[node name="Background" type="CanvasLayer" parent="Game"]
+layer = -1
+
+[node name="BG" type="Node2D" parent="Game/Background"]
+script = ExtResource("3_layer")
+
+[node name="World" type="Node2D" parent="Game"]
+
+[node name="FloorTex" type="Node2D" parent="Game/World"]
+texture_filter = 1
+material = SubResource("vig")
+script = ExtResource("3_layer")
+
+[node name="Floor" type="Node2D" parent="Game/World"]
+texture_filter = 1
+script = ExtResource("3_layer")
+
+[node name="UnderAdd" type="Node2D" parent="Game/World"]
+material = SubResource("add")
+texture_filter = 2
+script = ExtResource("3_layer")
+
+[node name="Ents" type="Node2D" parent="Game/World"]
+texture_filter = 1
+script = ExtResource("3_layer")
+
+[node name="Sprites" type="Node2D" parent="Game/World"]
+texture_filter = 2
+script = ExtResource("3_layer")
+
+[node name="FxAdd" type="Node2D" parent="Game/World"]
+material = SubResource("add")
+texture_filter = 2
+script = ExtResource("3_layer")
+
+[node name="FxTop" type="Node2D" parent="Game/World"]
+texture_filter = 1
+script = ExtResource("3_layer")
+
+[node name="Dark" type="Node2D" parent="Game/World"]
+material = SubResource("dark")
+script = ExtResource("3_layer")
+
+[node name="AfterDark" type="Node2D" parent="Game/World"]
+material = SubResource("add")
+texture_filter = 2
+script = ExtResource("3_layer")
+
+[node name="Overlay" type="CanvasLayer" parent="Game"]
+layer = 5
+
+[node name="Screen" type="Node2D" parent="Game/Overlay"]
+texture_filter = 2
+script = ExtResource("3_layer")
+
+[node name="AnomaliaFP" type="Node" parent="."]
+script = ExtResource("6_fp")
+
+[node name="UI" type="CanvasLayer" parent="."]
+layer = 10
+script = ExtResource("5_ui")

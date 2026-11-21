@@ -1,0 +1,452 @@
+extends Node
+## Testes funcionais automatizados (headless). Rodam o jogo de verdade, quadro a quadro, e conferem regras,
+## correções de bugs e o fluxo completo do Classic (6 chefes, Anomalia em 1ª pessoa, vitória e Fenda).
+## Uso: godot --headless --path . --fixed-fps 60 -- --test
+## Sai com código 0 se tudo passar, 1 se algum teste falhar.
+
+var main
+var game: Game
+var fails := 0
+var passes := 0
+var log_lines: Array[String] = []
+
+
+func _ready() -> void:
+	main = get_parent()
+	game = main.get_node("Game")
+	Settings.s.cine = false
+	Settings.s.sound = false
+	call_deferred("_run")
+
+
+func check(cond: bool, name: String, info: String = "") -> void:
+	if cond:
+		passes += 1
+		_out("  PASS  " + name)
+	else:
+		fails += 1
+		_out("  FAIL  " + name + ("  (" + info + ")" if info != "" else ""))
+
+
+func _out(s: String) -> void:
+	print(s)
+	log_lines.append(s)
+
+
+func frames(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
+
+
+## Roda quadros até a condição valer (ou estourar o limite). Retorna se valeu.
+func until(cond: Callable, max_frames: int) -> bool:
+	for i in max_frames:
+		if cond.call():
+			return true
+		await get_tree().process_frame
+	return cond.call()
+
+
+func god() -> void:
+	game.player.max_hp = 1e7
+	game.player.hp = 1e7
+	game.player.regen = 1e5
+
+
+func _run() -> void:
+	_out("== DOOM VALLEY · testes funcionais ==")
+	await _t_enemies()
+	await _t_shield()
+	await _t_upgrades()
+	await _t_level_and_combo()
+	await _t_touch()
+	await _t_synth_and_tracks()
+	await _t_save_roundtrip()
+	await _t_contencao()
+	await _t_boss_flow()
+	await _t_fase_b()
+	await _t_fenda()
+	_out("== %d passaram, %d falharam ==" % [passes, fails])
+	var f := FileAccess.open("user://test_report.txt", FileAccess.WRITE)
+	if f:
+		f.store_string("\n".join(log_lines))
+	get_tree().quit(1 if fails > 0 else 0)
+
+
+func _t_enemies() -> void:
+	_out("[inimigos]")
+	var t := Enemy.new(0, 0, "tank")
+	check(t.hp == 180.0 and t.max_hp == 180.0, "tanque nasce com 180 de vida (bug do maxHp=40 corrigido)", "hp=%s max=%s" % [t.hp, t.max_hp])
+	var f := Enemy.new(0, 0, "fast")
+	check(f.hp == 20.0 and f.max_hp == 20.0 and f.speed == 170.0, "fast: 20 de vida, velocidade 170")
+	var types := ["basic", "fast", "tank", "shooter", "splitter", "fragment", "guard", "gunner", "rifter", "leech"]
+	var ok := true
+	for tp in types:
+		var e := Enemy.new(0, 0, tp)
+		ok = ok and e.hp > 0.0 and e.radius > 0.0
+	check(ok, "os 10 arquétipos do campo existem com atributos válidos")
+	await frames(1)
+
+
+func _t_shield() -> void:
+	_out("[dano e escudo]")
+	main.ui.start_game()
+	await frames(2)
+	var P := game.player
+	P.hp = 100.0
+	P.shield_max = 25.0
+	P.shield = 10.0
+	game.take_damage(20.0, "proj")
+	check(P.shield == 0.0, "escudo não fica negativo", "shield=%s" % P.shield)
+	check(absf(P.hp - 85.0) < 0.01, "excedente do escudo passa para a vida (20 de dano, 10 de escudo absorvem 5)", "hp=%s" % P.hp)
+	P.iv = 0.0
+	game.take_damage(10.0, "melee")
+	check(P.iv > 0.0, "golpe corpo a corpo ≥ 4 dá invulnerabilidade curta")
+	var hp0 := P.hp
+	game.take_damage(10.0, "melee")
+	check(P.hp == hp0, "durante a invulnerabilidade o corpo a corpo não fere")
+	await frames(1)
+
+
+func _t_upgrades() -> void:
+	_out("[evoluções]")
+	var pw := game.powers
+	var opts := pw.offer()
+	check(opts.size() == 3, "level up oferece 3 opções")
+	var shock: Dictionary = {}
+	for u in pw.upgrades:
+		if u.n == "ELECTRO-SHOCK":
+			shock = u
+	pw.apply(shock)
+	check(pw.PU.shock.lv == 1 and pw.PU.shock.st == 1, "poder obtido fica bloqueado até liberar")
+	var offered := false
+	for i in 30:
+		for u in pw.offer():
+			if u.n == "ELECTRO-SHOCK":
+				offered = true
+	check(not offered, "poder bloqueado não aparece no level up")
+	var e := Enemy.new(game.player.x + 30.0, game.player.y, "basic")
+	e.fatal = {"shock": true}
+	pw.on_kill(e, [])
+	check(pw.PU.shock.st == 2, "abate com o próprio poder libera a evolução")
+	var evo := false
+	for i in 40:
+		for u in pw.offer():
+			if u.n == "ELECTRO-SHOCK" and String(u.d).begins_with("EVOLUÇÃO Nv 2"):
+				evo = true
+	check(evo, "evolução liberada aparece como 'EVOLUÇÃO Nv 2'")
+	await frames(1)
+
+
+func _t_level_and_combo() -> void:
+	_out("[nível, combo e pontuação]")
+	game.paused = false
+	var got := []
+	var cb := func(o: Array, _l: String): got.append(o.size())
+	game.level_up_requested.connect(cb)
+	game.player.xp = game.player.xp_to_next
+	var lv := game.player.level
+	game.check_level_up()
+	check(game.player.level == lv + 1 and game.paused and got.size() == 1, "XP cheio sobe de nível e pausa com o menu de evolução")
+	game.level_up_requested.disconnect(cb)
+	game.pick_upgrade(game.powers.offer()[0])
+	check(not game.paused, "escolher a evolução despausa")
+	var sc := game.score
+	game.combo.n = 0
+	Events.enemy_killed.emit({"x": 0.0, "y": 0.0, "color": Color.RED, "boss": false, "tough": false, "type": "basic", "elite": false})
+	check(game.combo.n == 1 and game.score == sc + 11, "abate soma combo e pontos (10 × (1 + 1/20))", "score=%d" % (game.score - sc))
+	await frames(1)
+
+
+func _touch(idx: int, pos: Vector2, pressed: bool) -> void:
+	var e := InputEventScreenTouch.new()
+	e.index = idx
+	e.position = pos
+	e.pressed = pressed
+	Input.parse_input_event(e)
+
+
+func _drag(idx: int, pos: Vector2) -> void:
+	var e := InputEventScreenDrag.new()
+	e.index = idx
+	e.position = pos
+	Input.parse_input_event(e)
+
+
+func _t_touch() -> void:
+	_out("[toque (eventos injetados no viewport)]")
+	game.paused = false
+	main.ui.lvl_modal.visible = false
+	var vw: float = game.vw
+	var vh: float = game.vh
+	var x0 := game.player.x
+	_touch(0, Vector2(vw * 0.2, vh * 0.6), true)
+	await frames(1)
+	_drag(0, Vector2(vw * 0.2 + 60.0, vh * 0.6))
+	await frames(20)
+	check(game.joy.active and game.joy.v.x > 0.95, "arrastar à esquerda cria o analógico de movimento", str(game.joy.v))
+	check(game.player.x > x0 + 20.0, "o analógico move o Nick", "dx=%.1f" % (game.player.x - x0))
+	_touch(0, Vector2(vw * 0.2 + 60.0, vh * 0.6), false)
+	await frames(2)
+	check(not game.joy.active and game.joy.v == Vector2.ZERO, "soltar o dedo para o movimento")
+	var aim0: String = Settings.s.aim
+	Settings.s.aim = "man"
+	game.enemies.clear()
+	var n0 := game.projectiles.size()
+	_touch(1, Vector2(vw * 0.8, vh * 0.5), true)
+	await frames(1)
+	_drag(1, Vector2(vw * 0.8, vh * 0.5 - 60.0))
+	await frames(70)
+	check(game.aim.on and game.aim.fire and absf(game.aim.ang + PI / 2.0) < 0.05, "mira manual: arrastar à direita aponta e atira", "ang=%.2f" % game.aim.ang)
+	check(game.projectiles.size() > n0, "a mira manual dispara mesmo sem inimigos")
+	_touch(1, Vector2(vw * 0.8, vh * 0.5 - 60.0), false)
+	await frames(2)
+	check(not game.aim.on, "soltar o dedo para de mirar")
+	Settings.s.aim = aim0
+
+
+func _t_synth_and_tracks() -> void:
+	_out("[áudio]")
+	var w := Sfx.synth_notes([[440.0, "square", 0.1, 0.1, 0.0]])
+	var nz := false
+	for i in range(0, w.data.size(), 2):
+		if w.data.decode_s16(i) != 0:
+			nz = true
+			break
+	check(w.data.size() > 4000 and nz, "SFX sintetizado gera áudio não silencioso")
+	check(SfxDefs.DEFS.size() == 52, "52 efeitos da tabela do HTML")
+	var ok := true
+	var loops := true
+	for id in Music.order:
+		var s = Music.stream_for(id)
+		ok = ok and s != null
+		if Music.tracks[id].lp:
+			loops = loops and s.loop and absf(s.loop_offset - 1.0) < 0.001
+	check(Music.order.size() == 17 and ok, "17 faixas carregam (Opus convertido para Vorbis)")
+	check(loops, "faixas com loop repetem a partir do ponto de entrada (1 s)")
+	check(Music.default_for("b0") == "bipedal" and Music.default_for("b5") == "bossrev" and Music.default_for("s3") == "runners", "trilha padrão por momento igual à do HTML")
+	await frames(1)
+
+
+func _t_save_roundtrip() -> void:
+	_out("[salvar e carregar]")
+	game.score = 1234
+	game.sec = 2
+	game.pk = 7
+	game.flags = {"roll": true}
+	var r := game.save_game()
+	check(r == "Partida salva.", "salvar no campo aberto", r)
+	game.save_game()   # o segundo salvamento guarda o anterior como cópia de segurança
+	var rd := SaveSystem.read_save()
+	check(rd.st == "ok" and int(rd.d.sc) == 1234, "leitura confere a soma de verificação")
+	var f := FileAccess.open(SaveSystem.SAVE_PATH, FileAccess.READ)
+	var txt := f.get_as_text()
+	f = null
+	var bad := FileAccess.open(SaveSystem.SAVE_PATH, FileAccess.WRITE)
+	bad.store_string(txt.replace("1234", "9999"))
+	bad = null
+	var rd2 := SaveSystem.read_save()
+	check(rd2.st == "ok" and rd2.get("rec", 0) == 1, "arquivo adulterado é recusado e a cópia de segurança assume")
+	var w := FileAccess.open(SaveSystem.SAVE_PATH, FileAccess.WRITE)
+	w.store_string(txt)
+	w = null
+	game.score = 0
+	game.sec = 0
+	game.load_game()
+	check(game.score == 1234 and game.sec == 2 and game.pk == 7 and game.has_unlock("roll"), "carregar restaura pontos, setor, abates e desbloqueios")
+	game.set_paused_menu(false)
+	await frames(1)
+
+
+func _t_contencao() -> void:
+	_out("[arena da Contenção]")
+	game.arena.enter_now("contencao", false)
+	await frames(2)
+	var A = game.arena.cur
+	check(A != null and A.has("tex") and A.aw == 720 and A.ah == 880, "piso e paredes montados em pixel art (720×880, 2 px por pixel)")
+	var n := {}
+	for o in A.obj:
+		n[o.k] = int(n.get(o.k, 0)) + 1
+	check(n.get("pilar", 0) == 4 and n.get("caixa", 0) == 9 and n.get("barril", 0) == 3 and n.get("vapor", 0) == 4, "obstáculos: 4 pilares, 9 caixas, 3 barris, 4 vapores", str(n))
+	var barrel: Dictionary
+	for o in A.obj:
+		if o.k == "barril":
+			barrel = o
+	game.arena.obj_break(barrel)
+	await frames(30)
+	check(barrel.get("dead", false), "barril quebrado explode depois do pavio")
+	game.arena.exit_now()
+	await frames(1)
+
+
+func _auto_pick(o: Array, _l: String) -> void:
+	# o menu de EVOLUÇÃO pausa o jogo (como no HTML); nos testes a primeira opção é escolhida
+	main.ui.lvl_modal.visible = false
+	game.pick_upgrade.call_deferred(o[0])
+
+
+func _t_boss_flow() -> void:
+	_out("[fluxo do Classic: 6 chefes]")
+	main.ui.start_game()
+	await frames(2)
+	god()
+	if not game.level_up_requested.is_connected(_auto_pick):
+		game.level_up_requested.connect(_auto_pick)
+	var won_sig := []
+	var vcb := func(_s: Dictionary): won_sig.append(true)
+	game.victory_reached.connect(vcb)
+	for i in 6:
+		var id: String = BossEncounter.BD[i].id
+		game.sec = i
+		game.pk = Game.BOSS_AT[i]
+		god()
+		var started := await until(func(): return game.enc.st == "active" or (game.enc.st == "fp" and game.fp_active), 900)
+		check(started, "chefe %d (%s) começa ao atingir %d abates no setor" % [i + 1, id, Game.BOSS_AT[i]], "st=" + game.enc.st)
+		if id == "anomalia":
+			var fp = main.get_node("AnomaliaFP")
+			check(fp.on and fp.boss != null, "Anomalia abre a câmara em primeira pessoa (3D)")
+			check(fp.walls[3].multimesh.instance_count == 64 and fp.walls[2].multimesh.instance_count == 4, "câmara 17×17 com 4 pilares de carne")
+			await frames(120)
+			fp.boss.hp = 0.0
+		else:
+			var aid: String = ArenaSystem.BOSS_ARENA[id]
+			await until(func(): return game.arena.cur != null, 120)
+			check(game.arena.cur != null and game.arena.cur.id == aid, "%s luta na arena própria (%s)" % [id, aid])
+			check(game.enc.boss != null and game.enc.boss.bd.id == id, "chefe certo em campo: " + id)
+			await frames(240)   # deixa a IA atacar por 4 s
+			god()
+			check(game.enc.boss != null and game.enc.boss.ai != null, "%s: IA rodou 4 s sem erro" % id)
+			game.enc.boss.hp = game.enc.boss.max_hp * 0.4
+			await frames(180)
+			check(game.enc.boss == null or game.enc.boss.ph >= 1, "%s entra na fase 2 abaixo do limiar" % id)
+			if game.enc.boss:
+				game.enc.boss.hp = 0.0
+		if i < 5:
+			var next := await until(func(): return game.enc.st == "none" and game.sec == i + 1 and not game.arena.on() and not game.fp_active, 900)
+			check(next, "depois de %s: volta ao campo e avança para o setor %d" % [id, i + 2], "st=%s sec=%d arena=%s" % [game.enc.st, game.sec, game.arena.on()])
+			if id == "rhino":
+				check(game.has_unlock("roll"), "Rhino derrotado libera o rolamento")
+			if id == "dracula":
+				check(game.has_unlock("parry"), "Drácula derrotado libera o aparar")
+		else:
+			var win := await until(func(): return won_sig.size() > 0, 600)
+			check(win, "Espelho (chefe final) derrotado mostra a vitória")
+	game.victory_reached.disconnect(vcb)
+	await frames(1)
+
+
+func _find_button(n: Node, text: String) -> Button:
+	if n is Button and (n as Button).text == text:
+		return n
+	for ch in n.get_children():
+		var b := _find_button(ch, text)
+		if b:
+			return b
+	return null
+
+
+func _t_fenda() -> void:
+	_out("[vitória e Fenda Infinita]")
+	check(main.ui.win_scr.visible, "tela SISTEMA ESTABILIZADO aparece")
+	var again := _find_button(main.ui.win_scr, "JOGAR DE NOVO")
+	check(again != null, "botão JOGAR DE NOVO existe")
+	if again:
+		again.pressed.emit()
+		await frames(3)
+		check(game.active and not game.paused and game.sec == 0 and game.score == 0 and not main.ui.win_scr.visible, "JOGAR DE NOVO reinicia a partida (bug do HTML corrigido)")
+		check(not game.has_unlock("roll"), "novo jogo volta a exigir o Rhino para rolar")
+	main.ui.win_scr.visible = false
+	game.continue_after_victory()
+	var inside := await until(func(): return game.arena.is_fenda(), 120)
+	check(inside, "ENTRAR NA FENDA leva à arena infinita")
+	god()
+	var fe: Fenda = game.arena.fenda
+	fe.nt = 0.0
+	var det := await until(func(): return not fe.anc.is_empty(), 60)
+	check(det, "uma âncora é detectada")
+	if not det:
+		return
+	fe.anc.need = 1.0
+	game.player.x = fe.anc.x
+	game.player.y = fe.anc.y
+	var dep := await until(func(): return fe.dep >= 1, 240)
+	check(dep, "sincronizar a âncora aumenta a profundidade")
+	check(SaveSystem.records().fenda >= 1, "recorde da Fenda é salvo")
+
+
+func _t_fase_b() -> void:
+	_out("[fase B: itens, modos, slots, equipamento e armas]")
+	check(ItemData.ITEMS.size() == 47, "catálogo com 47 itens (como no HTML)", str(ItemData.ITEMS.size()))
+	var bad := ""
+	for id in ItemData.ITEMS.keys():
+		var it: Dictionary = ItemData.ITEMS[id]
+		if not (it.has("n") and it.has("t") and it.has("d") and it.has("r")):
+			bad += id + " "
+		if it.t == "arma" and not it.has("wp"):
+			bad += id + "(wp) "
+		if it.t in ["arm", "rel"] and not it.has("st"):
+			bad += id + "(st) "
+		if it.has("boss") and not ["rhino", "dracula", "vesperon", "illuminati", "anomalia", "espelho"].has(it.boss):
+			bad += id + "(boss) "
+	check(bad == "", "itens com campos obrigatórios e chefes válidos", bad)
+	check(Modes.ORDER.size() == 11 and Modes.DATA.size() == 11, "11 modos de dificuldade")
+	check(is_equal_approx(Modes.get_mode("facil").ehp, 0.7) and is_equal_approx(Modes.get_mode("facil").xp, 1.25), "Fácil: vida 70% e XP ×1,25")
+	check(is_equal_approx(Modes.incoming(Modes.get_mode("hardcore"), 100.0, 10.0), 12.5), "Hardcore: o Nick recebe 25% a mais de dano")
+	check(is_equal_approx(Modes.incoming(Modes.get_mode("baby"), 50.0, 1000.0), 49.0), "Baby Mode: a vida nunca chega a zero")
+	check(is_equal_approx(Modes.incoming(Modes.get_mode("onehit"), 80.0, 1.0), 81.0), "One Hit: qualquer dano é fatal")
+	var e := Enemy.new(0, 0, "basic")
+	Modes.apply_enemy(Modes.get_mode("facil"), e)
+	check(e.max_hp == 28.0 and e.hp == 28.0, "Fácil: inimigo com 40 de vida passa a ter 28", "hp=%s" % e.hp)
+	var st := Equipment.stats({"arm": "placas", "rel": ["ima", "bateria"]})
+	check(is_equal_approx(st.hp, 30.0) and is_equal_approx(st.spd, 0.95) and st.mag == 1 and is_equal_approx(st.stm, 40.0), "equipamento: placas + ímã + bateria somam os bônus")
+	check(Equipment.weapon("dispersor").n == 2 and is_equal_approx(Equipment.weapon("dispersor").dm, 0.6), "Dispersor: 2 projéteis extras e 40% menos dano")
+	check(Equipment.weapon("pulsor").is_empty() and Equipment.weapon("kit").is_empty(), "arma padrão não altera o disparo; consumível não é arma")
+	# slots: gravar, ler, cópia de segurança, exportar e importar
+	SlotStore.delete(3)
+	check(SlotStore.write(3, SlotStore.new_slot("facil")), "gravar o slot 3")
+	check(SlotStore.write(3, SlotStore.new_slot("facil")), "segunda gravação cria a cópia de segurança")
+	var r := SlotStore.read(3)
+	check(r.st == "ok" and r.d.mode == "facil" and r.d.equip.arma == "pulsor", "ler o slot 3 de volta")
+	var txt := SlotStore.export_text(3)
+	var f := FileAccess.open(SlotStore.path(3), FileAccess.WRITE)
+	f.store_string(txt.replace("facil", "dificil"))
+	f = null
+	var r2 := SlotStore.read(3)
+	check(r2.st == "ok" and r2.get("rec", 0) == 1 and r2.d.mode == "facil", "slot adulterado cai para a cópia de segurança")
+	check(SlotStore.import_text(3, txt) == "", "importar um save exportado")
+	check(SlotStore.import_text(3, txt.replace("facil", "dificil")) == "arquivo alterado ou corrompido", "importar um arquivo adulterado é recusado")
+	SlotStore.delete(3)
+	check(SlotStore.read(3).st == "vazio", "apagar o slot deixa o slot vazio")
+	# partida com slot: equipamento e modo do slot valem na partida
+	var sd := SlotStore.new_slot("facil")
+	sd.equip.arma = "dispersor"
+	sd.equip.arm = "placas"
+	SlotStore.write(2, sd)
+	check(game.start_slot(2) == "", "começar uma partida no slot 2")
+	check(game.mode.id == "facil" and game.equip.arma == "dispersor", "a partida usa o modo e a arma do slot")
+	check(is_equal_approx(game.player.max_hp, 130.0), "placas dão +30 de vida máxima na partida", "max=%s" % game.player.max_hp)
+	game.enemies.clear()
+	game.projectiles.clear()
+	var aim_before: String = Settings.s.aim
+	Settings.s.aim = "auto"   # disparo automático: o teste não depende da mira do jogador
+	game.player.last_attack = -1e9
+	game.player.projectiles = 1
+	var foe := Enemy.new(game.player.x + 100.0, game.player.y, "basic")
+	game.enemies.append(foe)
+	game._fire()
+	check(game.projectiles.size() == 3, "Dispersor dispara 3 projéteis (1 + 2)", "n=%d" % game.projectiles.size())
+	check(game.projectiles.size() > 0 and is_equal_approx(game.projectiles[0].dm6, 0.6), "projétil do Dispersor carrega 60% do dano")
+	Settings.s.aim = aim_before
+	game.enemies.clear()
+	game.projectiles.clear()
+	# Hardcore: morte apaga o slot
+	SlotStore.delete(2)
+	SlotStore.write(2, SlotStore.new_slot("hardcore"))
+	game.start_slot(2)
+	game.end_game()
+	check(SlotStore.read(2).st == "vazio" and game.slot_n == 0, "Hardcore: morrer apaga o slot para sempre")
+	main.ui.over_scr.visible = false
+	# volta ao Classic normal, sem slot
+	game.start_classic()
+	check(game.slot_n == 0 and game.mode.id == "classico", "partida rápida volta ao Classic sem slot")
+	await frames(1)
