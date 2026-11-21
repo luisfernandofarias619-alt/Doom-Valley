@@ -1,0 +1,112 @@
+{
+ "runners": {
+  "title": "runners after all",
+  "dur": "81.23",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "81.230771"
+ },
+ "crimson": {
+  "title": "crimson_circuits",
+  "dur": "30.76"
+ },
+ "rise": {
+  "title": "Rise Of The Hero",
+  "dur": "152.84"
+ },
+ "fountain": {
+  "title": "Fountain of ignorance",
+  "dur": "55.66"
+ },
+ "cyberstreet": {
+  "title": "Cyberpunk Street · Ansimuz",
+  "dur": "61.09",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "61.090917"
+ },
+ "longprep": {
+  "title": "Long Preparation · Ansimuz",
+  "dur": "96.00",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "96.000000"
+ },
+ "jumprun": {
+  "title": "Jump Run Duck · Ansimuz",
+  "dur": "52.50",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "52.500000"
+ },
+ "megabay": {
+  "title": "Mega Bot Bay · Ansimuz",
+  "dur": "65.14",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "65.142854"
+ },
+ "pipesforest": {
+  "title": "Mega Bot Pipes Forest · Ansimuz",
+  "dur": "59.08",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "59.076937"
+ },
+ "cyberrunner": {
+  "title": "Cyber Runner · Ansimuz",
+  "dur": "98.00",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "98.000000"
+ },
+ "streetrev": {
+  "title": "Cyberpunk Street (invertida) · Ansimuz",
+  "dur": "61.09",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "61.090917"
+ },
+ "bipedal": {
+  "title": "Bipedal Mech · Ansimuz",
+  "dur": "56.73",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "56.727271"
+ },
+ "magicfx7": {
+  "title": "Magic Fx 7 · Ansimuz",
+  "dur": "90.00",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "90.000000"
+ },
+ "bossbattle": {
+  "title": "Boss Battle · Ansimuz",
+  "dur": "66.00",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "66.000000"
+ },
+ "battleenc": {
+  "title": "Battle Encounter · Ansimuz",
+  "dur": "96.00",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "96.000000"
+ },
+ "pipesunder": {
+  "title": "Mega Bot Pipes Under · Ansimuz",
+  "dur": "57.60",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "57.600000"
+ },
+ "bossrev": {
+  "title": "Boss Battle (invertida) · Ansimuz",
+  "dur": "66.00",
+  "loop": "1",
+  "lead": "1.0",
+  "len": "66.000000"
+ }
+}
