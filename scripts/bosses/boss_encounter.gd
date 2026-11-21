@@ -292,6 +292,17 @@ func draw_top(c: CanvasItem) -> void:
 			behaviors[k].draw_top_always(c)
 
 
+func draw_screen(c: CanvasItem) -> void:
+	for k in behaviors.keys():
+		if behaviors[k].has_method("draw_screen"):
+			behaviors[k].draw_screen(c)
+
+
+func draw_after_dark(c: CanvasItem) -> void:
+	if boss != null and boss.ai != null and g.enemies.has(boss) and boss.ai.has_method("draw_after_dark"):
+		boss.ai.draw_after_dark(c, boss)
+
+
 ## Barra do chefe embaixo, centralizada (NF.bossBar).
 func draw_boss_bar(c: CanvasItem) -> void:
 	var b := boss

@@ -892,6 +892,37 @@ func _draw_objects(c: CanvasItem, A: Dictionary) -> void:
 		th.draw_objects(c, A)
 
 
+## Escuridão da Lua de Sangue (Catedral): shader com furos de luz (jogador, velas, rosácea, chefe).
+func draw_dark(c: CanvasItem) -> void:
+	var A = cur
+	var mat := c.material as ShaderMaterial
+	if A == null or not A.get("dark", false):
+		if mat:
+			mat.set_shader_parameter("strength", 0.0)
+		return
+	var th = theme()
+	if th == null or not th.has_method("lights"):
+		return
+	if not A.get("cut", false):
+		A.cut = true
+		for o in A.obj:
+			if o.k == "vela" and randf() < 0.67:
+				o.lit = false
+	A.dark_k = minf(1.0, float(A.get("dark_k", 0.0)) + 0.6 * g.get_process_delta_time())
+	var L: Array = th.lights(A)
+	var arr := PackedVector3Array()
+	for l in L:
+		if arr.size() >= 12:
+			break
+		arr.append(l)
+	if mat:
+		mat.set_shader_parameter("strength", 0.9 * float(A.dark_k))
+		mat.set_shader_parameter("count", arr.size())
+		mat.set_shader_parameter("lights", arr)
+	var v := view_rect()
+	c.draw_rect(v.grow(8.0), Color.WHITE)
+
+
 func draw_after(c: CanvasItem) -> void:
 	var A = cur
 	if A == null:

@@ -83,6 +83,8 @@ var _aq := {"s": 0.0, "n": 0, "b": 0}
 @onready var sprite_layer: Node2D = $World/Sprites
 @onready var fx_add: Node2D = $World/FxAdd
 @onready var fx_top: Node2D = $World/FxTop
+@onready var dark_layer: Node2D = $World/Dark
+@onready var after_dark: Node2D = $World/AfterDark
 @onready var overlay: Node2D = $Overlay/Screen
 
 
@@ -101,6 +103,8 @@ func _ready() -> void:
 	sprite_layer.painter = _draw_sprites
 	fx_add.painter = _draw_fx_add
 	fx_top.painter = _draw_fx_top
+	dark_layer.painter = func(c: CanvasItem): arena.draw_dark(c)
+	after_dark.painter = func(c: CanvasItem): enc.draw_after_dark(c)
 	overlay.painter = _draw_overlay
 	_connect_events()
 	_resize()
@@ -217,7 +221,7 @@ func _process(delta: float) -> void:
 		shk = 0.0
 	shake_off = Vector2((randf() - 0.5) * shk, (randf() - 0.5) * shk) if shk > 0.0 else Vector2.ZERO
 	_apply_camera()
-	for n in [bg_layer, floor_tex, floor_layer, under_add, ents_layer, sprite_layer, fx_add, fx_top, overlay]:
+	for n in [bg_layer, floor_tex, floor_layer, under_add, ents_layer, sprite_layer, fx_add, fx_top, dark_layer, after_dark, overlay]:
 		n.queue_redraw()
 
 
@@ -984,18 +988,24 @@ func rhino_fx(c: CanvasItem, k: int, x: float, y: float, s: float, al: float) ->
 
 func _apply_camera() -> void:
 	var z: float = arena.cam.z
-	world.scale = Vector2(z, z)
 	var cx: float = roundf(arena.cam.x * z) / z
 	var cy: float = roundf(arena.cam.y * z) / z
-	world.position = -Vector2(cx, cy) * z + shake_off
+	if mir_x and arena.on():
+		# O MUNDO SE INVERTE (Espelho): a imagem do mundo é espelhada e os controles também, como no HTML.
+		# CORRIGIDO: no Classic o HTML invertia só os controles (o espelho da tela exigia a cena 'arena').
+		world.scale = Vector2(-z, z)
+		world.position = Vector2(vw + cx * z, -cy * z) + shake_off
+	else:
+		world.scale = Vector2(z, z)
+		world.position = -Vector2(cx, cy) * z + shake_off
 
 
 func screen_to_world(p: Vector2) -> Vector2:
-	return (p - world.position) / world.scale.x
+	return (p - world.position) / world.scale
 
 
 func world_to_screen(p: Vector2) -> Vector2:
-	return p * world.scale.x + world.position
+	return p * world.scale + world.position
 
 
 # ======================================================================
@@ -1479,6 +1489,9 @@ func _draw_overlay(c: CanvasItem) -> void:
 		var col: Color = banner_d.col
 		col.a = minf(1.0, banner_d.t * 2.0)
 		Draw.text(c, Assets.font_ui_black, banner_d.txt, Vector2(vw / 2.0, vh * 0.28), 28, col, HORIZONTAL_ALIGNMENT_CENTER)
+	enc.draw_screen(c)
+	if mir_x and arena.on():
+		c.draw_rect(Rect2(2, 2, vw - 4, vh - 4), Color(1, 0.24, 0.95, 0.5 + 0.2 * sin(game_time * 4.0)), false, 4.0)
 	arena.draw_screen(c)
 	_draw_hud_msgs(c)
 	_draw_aim(c)

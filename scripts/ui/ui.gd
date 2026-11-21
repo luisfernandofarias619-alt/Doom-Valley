@@ -377,7 +377,7 @@ func _process(delta: float) -> void:
 		var k := P.st / game.st_max_eff()
 		st_bar.size.x = 248.0 * clampf(k, 0.0, 1.0)
 		st_bar.color = Color("#ff9a3d") if k < 0.35 else Color("#9fe8ff")
-	hud.visible = game.started and game.active and not game.fp_active and title_scr.visible == false
+	hud.visible = game.started and game.active and title_scr.visible == false
 	pause_btn.visible = game.active and not title_scr.visible
 	hud.modulate.a = 0.0 if game.cine.on else 1.0
 	var touch := Settings.is_touch and play and not game.cine.on
