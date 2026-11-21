@@ -37,13 +37,13 @@ var _amb_lvl := 0.0
 var _amb_next := 0.0
 var _amb_building := false
 var _amb_pool: Array[AudioStreamPlayer] = []
+var _amb_task := -1
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	var f := FileAccess.open("res://resources/audio/tracks.json", FileAccess.READ)
-	if f:
-		var d: Dictionary = JSON.parse_string(f.get_as_text())
+	var d: Dictionary = AtlasData.TRACKS
+	if true:
 		for id in d.keys():
 			var t: Dictionary = d[id]
 			var lp: bool = t.get("loop", "0") == "1"
@@ -63,6 +63,16 @@ func _ready() -> void:
 		q.bus = "Ambience"
 		add_child(q)
 		_amb_pool.append(q)
+
+
+func _exit_tree() -> void:
+	if _amb_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_amb_task)
+		_amb_task = -1
+	for d in _decks:
+		(d.p as AudioStreamPlayer).stop()
+		(d.p as AudioStreamPlayer).stream = null
+	_streams.clear()
 
 
 func stream_for(id: String) -> AudioStream:
@@ -325,7 +335,7 @@ func _amb_tick(dt: float, vol: float) -> void:
 	var tgt := vol * 0.55 * (0.4 if paused else 1.0) * Settings.sfx_volume() if want != "" else 0.0
 	if want != "" and _amb_stream == null and not _amb_building:
 		_amb_building = true
-		WorkerThreadPool.add_task(_amb_build)
+		_amb_task = WorkerThreadPool.add_task(_amb_build)
 	_amb_lvl += (tgt - _amb_lvl) * minf(1.0, dt * (0.9 if tgt > _amb_lvl else 1.6))
 	if _amb_lvl < 0.0005 and tgt == 0.0:
 		_amb_lvl = 0.0

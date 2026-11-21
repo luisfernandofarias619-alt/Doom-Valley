@@ -17,6 +17,7 @@ var _duck := 0.0
 var _voices: Array[float] = []   # instantes (ms) em que cada nota termina
 var _tones := {}
 var _mutex := Mutex.new()
+var _task := -1
 
 
 func _ready() -> void:
@@ -26,7 +27,13 @@ func _ready() -> void:
 		p.bus = "SFX"
 		add_child(p)
 		_players.append(p)
-	WorkerThreadPool.add_task(_prerender_all, false, "sfx prerender")
+	_task = WorkerThreadPool.add_task(_prerender_all, false, "sfx prerender")
+
+
+func _exit_tree() -> void:
+	if _task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_task)
+		_task = -1
 
 
 func _ensure_buses() -> void:

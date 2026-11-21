@@ -5,11 +5,13 @@ Uso: python3 tools/extract_assets.py original/doom-valley.html .
 
 - Imagens <script type="application/x-mind-img" data-id=...> (WebP)  -> assets/sprites/sheets/<id>.webp
 - const RHA / const ARA (PNG data URI)                               -> assets/sprites/rhino_atlas.png / arena_atlas.png
-- const ATL (recortes das folhas)                                     -> resources/atlas/atlas.json
+- const ATL (recortes das folhas), RF/GYR (Rhino), ARJ (Contenção)    -> scripts/data/atlas_data.gd (constantes GDScript)
 - const ICONS (PNG data URI por item)                                 -> assets/sprites/icons/<id>.png
 - <script type="application/x-nexus-audio"> (Ogg/Opus)               -> assets/audio/music/<id>.ogg (Ogg Vorbis, via ffmpeg)
   O Godot 4 não decodifica Opus; as faixas são convertidas para Vorbis (q=1, ~80 kbps; origem Opus 32 kbps) preservando duração.
-  Os metadados (title, dur, loop, lead, len) vão para resources/audio/tracks.json.
+  Os metadados (title, dur, loop, lead, len) vão para scripts/data/atlas_data.gd (TRACKS).
+As tabelas viram constantes GDScript (e não .json) porque arquivos que não são recursos ficam fora do
+export (Android) a menos que um filtro seja configurado à mão.
 """
 import base64, json, os, re, subprocess, sys, tempfile
 
@@ -36,15 +38,14 @@ for name, fn in (('RHA', 'rhino_atlas.png'), ('ARA', 'arena_atlas.png')):
 
 # RF (quadros do Rhino) e ARJ (recortes do atlas da arena)
 m = re.search(r"RF=(\{.*?\}),GYR=(\d+);", html)
-w('resources/atlas/rhino_frames.json', json.dumps({'frames': json.loads(m.group(1)), 'gyr': int(m.group(2))}, indent=1).encode())
+RF, GYR = json.loads(m.group(1)), int(m.group(2))
 m = re.search(r"ARJ=(\{.*?\}),ARI=", html)
-w('resources/atlas/arena_atlas.json', json.dumps(json.loads(m.group(1)), indent=1).encode())
+ARJ = json.loads(m.group(1))
 print('rhino/arena frames')
 
 # ATL
 m = re.search(r'const ATL=(\{.*?\});\s*$', html, re.M)
 atl = json.loads(m.group(1))
-w('resources/atlas/atlas.json', json.dumps(atl, indent=1).encode())
 print('atlas', list(atl.keys()))
 
 # ICONS
@@ -72,4 +73,11 @@ for m in re.finditer(r'<script type="application/x-nexus-audio"([^>]*)>([^<]+)</
     subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', raw] + cut + ['-c:a', 'libvorbis', '-q:a', '1', dst], check=True)
     tracks[tid] = attrs
     print('audio', tid, attrs.get('title'))
-w('resources/audio/tracks.json', json.dumps(tracks, indent=1, ensure_ascii=False).encode())
+def gd(v):
+    return json.dumps(v, ensure_ascii=False)
+src_gd = ["class_name AtlasData", "## Gerado por tools/extract_assets.py a partir do HTML original (não editar à mão).",
+          "## Cada quadro: [x, y, largura, altura, âncora x, âncora y]; recortes da Contenção: [x, y, largura, altura].",
+          "const ATL := " + gd(atl), "const RF := " + gd(RF), "const GYR := %d" % GYR, "const ARJ := " + gd(ARJ),
+          "const TRACKS := " + gd(tracks)]
+w('scripts/data/atlas_data.gd', ("\n".join(src_gd) + "\n").encode())
+print('atlas_data.gd')

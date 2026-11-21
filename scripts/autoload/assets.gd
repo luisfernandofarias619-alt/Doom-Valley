@@ -22,14 +22,13 @@ var _bullets := {}
 
 
 func _ready() -> void:
-	atl = _json("res://resources/atlas/atlas.json")
+	atl = AtlasData.ATL
 	for id in atl.keys():
 		sheets[id] = load("res://assets/sprites/sheets/%s.webp" % id)
-	var rf: Dictionary = _json("res://resources/atlas/rhino_frames.json")
-	rhino_frames = rf.get("frames", {})
-	gyr = int(rf.get("gyr", 40))
+	rhino_frames = AtlasData.RF
+	gyr = AtlasData.GYR
 	rhino_tex = load("res://assets/sprites/rhino_atlas.png")
-	arena_rects = _json("res://resources/atlas/arena_atlas.json")
+	arena_rects = AtlasData.ARJ
 	arena_tex = load("res://assets/sprites/arena_atlas.png")
 	if arena_tex:
 		arena_img = arena_tex.get_image()
@@ -54,15 +53,6 @@ func _sysfont(names: PackedStringArray, weight: int) -> SystemFont:
 	f.font_weight = weight
 	f.antialiasing = TextServer.FONT_ANTIALIASING_GRAY
 	return f
-
-
-func _json(path: String) -> Dictionary:
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null:
-		push_error("Assets: não abriu %s" % path)
-		return {}
-	var d = JSON.parse_string(f.get_as_text())
-	return d if d is Dictionary else {}
 
 
 ## Quadro i (com repetição) da animação anim da folha id. Vazio se não existir.

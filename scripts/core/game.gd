@@ -1596,3 +1596,29 @@ func dev_arena(id: String) -> void:
 
 func start_fp_boss() -> void:
 	$"../AnomaliaFP".boss_start(true)
+
+
+## Quebra os ciclos de referência entre sistemas (RefCounted) ao sair da árvore, para não vazar memória.
+func _exit_tree() -> void:
+	for s in Events.get_signal_list():
+		for con in Events.get_signal_connection_list(s.name):
+			var cb: Callable = con.callable
+			var obj := cb.get_object()
+			if obj == null or obj is RefCounted or obj == self:
+				Events.disconnect(s.name, cb)
+	if arena:
+		arena.themes.clear()
+		arena.fenda = null
+		arena.cracks.clear()
+		arena.cur = null
+	if enc:
+		enc.behaviors.clear()
+		enc.boss = null
+	enemies.clear()
+	projectiles.clear()
+	enemy_projectiles.clear()
+	if powers:
+		powers.upgrades.clear()
+	BossRhino.wait_tasks()
+	BossRhino.tint_tex = null
+	PixelArt._pieces.clear()

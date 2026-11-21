@@ -29,11 +29,14 @@ var ground: Array[Dictionary] = []   # RHG: linhas de velocidade e explosões no
 var deaths: Array[Dictionary] = []   # DFX: quadros de morte onde ele caiu
 static var tint_tex: Texture2D = null
 static var _tinting := false
+static var _task := -1
 
 
-func _init(game) -> void:
-	super(game)
-	_make_tint()
+## Aguarda a thread do tingimento (chamado ao sair do jogo).
+static func wait_tasks() -> void:
+	if _task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_task)
+		_task = -1
 
 
 ## Berserker: versão "aquecida" do atlas (rhTint): runas mais quentes, armadura mais escura. Gerada numa thread.
@@ -47,7 +50,7 @@ static func _make_tint() -> void:
 	if img.is_compressed():
 		img.decompress()
 	img.convert(Image.FORMAT_RGBA8)
-	WorkerThreadPool.add_task(func():
+	_task = WorkerThreadPool.add_task(func():
 		var d := img.get_data()
 		var n := d.size()
 		var i := 0
@@ -79,6 +82,7 @@ func clear_visuals() -> void:
 
 
 func on_spawn(b: Enemy) -> void:
+	_make_tint()   # a versão Berserker do atlas é preparada numa thread enquanto a luta começa
 	b.d = {"st": "entry", "sT": 0.0, "s": 0, "cur": "", "pt": 0.0, "fr": null, "vx": 0.0, "vy": 0.0, "fa": 0.0, "hist": [], "last": {},
 		"pvx": 0.0, "pvy": 0.0, "in": false, "rg": false, "bt": 0.0, "sw": -1, "fx": 1.0, "nx": "", "jx": 0.0}
 
