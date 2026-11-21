@@ -60,6 +60,16 @@ var mir_x := false
 var fp_active := false
 var show_hitboxes := false   # Diagnóstico → Ver hitboxes
 
+# modo, slot e equipamento da partida (Fase B: modos, slots v2, equipamento e armas)
+var mode: Dictionary = Modes.get_mode("classico")
+var slot_n := 0
+var slot: Dictionary = {}
+var equip: Dictionary = Equipment.default_equip()
+var eq_q: Dictionary = Equipment.stats(equip)
+var weapon_lv := 0
+var _burst := 0
+var _refl := 0
+
 # rolamento / aparar
 var rl := {"on": false, "t": 0.0, "dx": 1.0, "dy": 0.0, "cd": 0.0, "gh": []}
 var pry := {"on": false, "t": 0.0, "cd": 0.0, "ok": false, "fx": 0.0, "fa": 0.0}
@@ -124,7 +134,53 @@ func _resize() -> void:
 # ======================================================================
 # fluxo
 # ======================================================================
+## Partida Classic rápida (sem slot): modo Classic, equipamento padrão e sem progresso salvo em slot.
 func start_classic(load_data: Dictionary = {}) -> void:
+	slot_n = 0
+	slot = {}
+	equip = Equipment.default_equip()
+	set_mode("classico")
+	_start_run(load_data)
+
+
+## Começa uma partida com o slot n: usa o modo, o equipamento e os desbloqueios guardados nele.
+func start_slot(n: int) -> String:
+	var r := SlotStore.read(n)
+	if r.st != "ok":
+		return r.st
+	slot_n = n
+	slot = r.d
+	equip = slot.equip
+	set_mode(String(slot.mode))
+	SlotStore.set_last(n)
+	_start_run({})
+	return ""
+
+
+## Novo jogo num slot (apaga o que havia nele).
+func new_slot_game(n: int, mode_id: String) -> String:
+	SlotStore.delete(n)
+	SlotStore.write(n, SlotStore.new_slot(mode_id))
+	return start_slot(n)
+
+
+func set_mode(id: String) -> void:
+	mode = Modes.get_mode(id)
+	cfg.elite = float(mode.elite)
+	cfg.bossHp = float(mode.ehp)
+	cfg.bossRate = float(mode.brate)
+	cfg.ifr = 0.15 if mode.get("noif", false) else 0.5
+
+
+## Desbloqueio permanente de um chefe (rolamento, aparar). Vale também para o slot.
+func grant(k: String) -> void:
+	flags[k] = true
+	if slot_n > 0:
+		(slot.prog.unl as Dictionary)[k] = 1
+		SlotStore.write(slot_n, slot)
+
+
+func _start_run(load_data: Dictionary) -> void:
 	_run_reset()
 	active = true
 	started = true
@@ -133,7 +189,9 @@ func start_classic(load_data: Dictionary = {}) -> void:
 	player.x = vw / 2.0
 	player.y = vh / 2.0
 	arena.exit_now()
-	flags = {}   # como no HTML (NF.start zera V6.flags): rolamento e aparar voltam a exigir os chefes
+	flags = (slot.prog.unl as Dictionary).duplicate() if slot_n > 0 else {}   # como no HTML: sem slot, rolamento e aparar voltam a exigir os chefes
+	eq_q = Equipment.apply(player, equip, mode)
+	weapon_lv = int((slot.get("wlv", {}) as Dictionary).get(equip.get("arma"), 0)) if slot_n > 0 else 0
 	if not load_data.is_empty():
 		_apply_save(load_data)
 	sfx("start")
@@ -479,7 +537,7 @@ func _kill(e: Enemy, ei: int) -> void:
 		var sh := player.shield_max > 0.0 and randf() < 0.1
 		add_pickup(e.x, e.y, "shield" if sh else ("hp" if randf() < 0.3 else "xp"))
 	player.kills += 1
-	player.xp += 500.0 if e.is_boss else (80.0 if e.elite else 20.0)
+	player.xp += (500.0 if e.is_boss else (80.0 if e.elite else 20.0)) * float(mode.xp)
 	enemies.remove_at(ei)
 	if e.bd.is_empty() and enc.st == "none":
 		pk += 1
@@ -638,6 +696,7 @@ func spawn_enemy() -> void:
 		elif dk > 90 and q < 0.28: type = "rifter"
 		elif dk > 110 and q < 0.34: type = "leech"
 	var en := Enemy.new(x, y, type)
+	Modes.apply_enemy(mode, en)
 	if dk > 40 and randf() < float(cfg.elite):
 		en.elite = true
 		en.hp *= 2.5
@@ -673,6 +732,11 @@ func take_damage(amt: float, kind: String = "proj") -> void:
 		return
 	if cine.on:
 		return
+	if not (amt > 0.0):
+		return
+	amt = Modes.incoming(mode, player.hp, amt)   # dano do modo (dificuldade, Baby, One Hit)
+	if mode.get("one", false):
+		player.shield = 0.0   # One Hit: escudos não protegem
 	if not (amt > 0.0):
 		return
 	var ml := kind == "melee"
@@ -715,6 +779,7 @@ func end_game() -> void:
 	if not active:
 		return
 	active = false
+	_slot_progress()
 	var r := SaveSystem.records()
 	r.runs += 1
 	r.kills = maxi(r.kills, player.kills)
@@ -724,6 +789,22 @@ func end_game() -> void:
 	SaveSystem.write_records(r)
 	Events.game_over.emit()
 	game_ended.emit({"level": player.level, "kills": player.kills, "score": score, "time": game_time, "record": r.kills})
+
+
+## Progresso do slot ao cair. No modo Hardcore (perma) o slot é apagado para sempre.
+func _slot_progress() -> void:
+	if slot_n <= 0:
+		return
+	var pr: Dictionary = slot.prog
+	pr.runs = int(pr.get("runs", 0)) + 1
+	pr.deaths = int(pr.get("deaths", 0)) + 1
+	pr.kills = int(pr.get("kills", 0)) + player.kills
+	if mode.get("perma", false):
+		SlotStore.delete(slot_n)
+		slot_n = 0
+		slot = {}
+		return
+	SlotStore.write(slot_n, slot)
 
 
 func _victory() -> void:
@@ -751,7 +832,8 @@ func _fire() -> void:
 	if cine.on:
 		return
 	var now := game_time * 1000.0
-	if now - player.last_attack <= player.attack_speed:
+	var W := Equipment.weapon(equip.get("arma"), weapon_lv)
+	if now - player.last_attack <= player.attack_speed * float(W.get("cd", 1.0)):
 		return
 	if pry.on or rl.on:
 		return
@@ -777,18 +859,47 @@ func _fire() -> void:
 			return
 		ang = atan2(best.y - player.y, best.x - player.x)
 	sfx("shoot")
-	var n := player.projectiles
+	var n: int = player.projectiles + int(W.get("n", 0))
+	var sd := float(W.get("sd", 0.15))
+	var sp := 600.0 * float(W.get("sp", 1.0))
 	for i in n:
-		var a := ang + (i - (n - 1) / 2.0) * 0.15
-		var p := Projectile.new(player.x, player.y, cos(a) * 600.0, sin(a) * 600.0, PRIMARY, false, player.area_scale)
-		p.lf = 1.7
-		powers.tag(p)
-		projectiles.append(p)
+		_spawn_shot(ang + (i - (n - 1) / 2.0) * sd, sp, W)
+	if W.has("burst"):   # Códice: a cada N disparos, uma rajada de 5 páginas
+		_burst += 1
+		if _burst >= int(W.burst):
+			_burst = 0
+			for i in 5:
+				var a := ang + (i - 2) * 0.32
+				_spawn_shot(a, sp * 0.8, W, Color("#ff9a3d"))
+	if int(eq_q.get("refl", 0)) > 0:   # Reflexo: a cada 3 disparos, um eco atira para trás
+		_refl += 1
+		if _refl >= 3:
+			_refl = 0
+			_spawn_shot(ang + PI, sp, W, Color("#ffd6ff"))
 	player.last_attack = now
 
 
+func _spawn_shot(a: float, sp: float, W: Dictionary, col: Color = PRIMARY) -> void:
+	var p := Projectile.new(player.x, player.y, cos(a) * sp, sin(a) * sp, col, false, player.area_scale)
+	_shot_tag(p, W)
+	projectiles.append(p)
+
+
+## Perfil da arma no projétil: dano, perfuração, empurrão, teleguiado, roubo de vida e alcance.
+func _shot_tag(p: Projectile, W: Dictionary) -> void:
+	if W.has("sz"):
+		p.radius *= float(W.sz)
+	p.dm6 = float(W.get("dm", 1.0))
+	p.pc = int(W.get("pr", 0))
+	p.kb = float(W.get("kb", 0.0))
+	p.hm = W.has("hm")
+	p.ls = float(W.get("ls", 0.0))
+	p.lf = 1.7 * float(W.get("rg", 1.0)) / float(W.get("sp", 1.0))
+	powers.tag(p)
+
+
 func manual() -> bool:
-	return Settings.s.aim == "man"
+	return bool(mode.get("man", false)) or Settings.s.aim == "man"   # modo Hardcore: tiro manual (V6.M.man)
 
 
 func _aim_update() -> void:

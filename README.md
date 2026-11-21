@@ -21,7 +21,7 @@ Na 1ª pessoa: clique trava o mouse, A/D andam de lado, setas giram. No toque: a
 
 ### Testes
 ```bash
-GODOT=/caminho/para/godot tests/run_tests.sh          # suíte funcional headless (77 verificações)
+GODOT=/caminho/para/godot tests/run_tests.sh          # suíte funcional headless (102 verificações)
 godot --path . -- --shots=boss:0                        # capturas de um cenário (title, classic, boss:0..5, fenda)
 godot --path . -- --bench                               # teste de carga com tempos por camada
 ```

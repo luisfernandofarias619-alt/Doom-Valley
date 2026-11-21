@@ -164,7 +164,7 @@ Ambiente: Linux, Godot 4.4.1 oficial; headless para lógica; Xvfb + Mesa llvmpip
 | Teste | Como | Resultado |
 |-------|------|-----------|
 | Importação e compilação de todos os scripts/shaders | `godot --headless --import` | **0 erros** |
-| Suíte funcional (`tests/run_tests.sh`) | headless, `--fixed-fps 60`, jogo real quadro a quadro | **77/77 passam, 0 SCRIPT ERROR** |
+| Suíte funcional (`tests/run_tests.sh`) | headless, `--fixed-fps 60`, jogo real quadro a quadro | **102/102 passam, 0 SCRIPT ERROR** |
 | — inimigos, dano/escudo, evoluções, nível/combo | unidades dentro do jogo | ok |
 | — toque: analógico de movimento, mira manual com segundo dedo, soltar | eventos `InputEventScreenTouch/Drag` injetados | ok |
 | — áudio: síntese, 52 SFX, 17 faixas, loops, trilha por momento | | ok |
@@ -186,6 +186,20 @@ Não testado (não havia como neste ambiente): **export e execução em aparelho
 ---
 
 ## 6. Próximas fases
+
+### Fase B — andamento
+- [x] Catálogo de **47 itens** do HTML (`scripts/data/items.gd`), com raridade, peso, perfis de arma, bônus de armadura e relíquia, e chefe de origem
+- [x] **11 modos** com todos os modificadores (`scripts/data/modes.gd`): vida e dano dos inimigos, dano recebido, Baby Mode, One Hit, tiro manual, sem regeneração, cadência dos chefes
+- [x] **Slots v2** (`scripts/progression/slot_store.gd`): 3 slots, soma FNV-1a, cópia de segurança automática, exportar e importar, slot apagado no Hardcore ao cair
+- [x] **Equipamento e armas** (`scripts/combat/equipment.gd`): bônus de armadura e relíquias aplicados à partida; Dispersor, Agulheiro, Lança, Chifre, Presa, Códice (rajada) e Olho (teleguiado) disparam pelo perfil da arma; Reflexo (tiro para trás) funciona
+- [x] Desbloqueios permanentes (rolamento e aparar) gravados no slot
+- [x] Testes: 25 verificações novas, todas passando
+- [ ] **Interface de slots e modos** (escolher slot, novo jogo, apagar, modo, exportar/importar): ainda não existe; hoje a partida com slot é iniciada pelo código (`game.start_slot`, `game.new_slot_game`)
+- [ ] Relíquias ainda sem efeito: Vórtice de Cinzas (tempestade periódica), Tesseract (tiro que acerta duas vezes), Coração de reserva (segunda vida), Luva de aparar e Selo do Bibliotecário (valores registrados, efeito não ligado)
+- [ ] Consumíveis (kit, bomba de pulso, estimulante, chá) sem uso no combate
+- [ ] Recompensas de itens dos chefes (troféus no baú, receitas)
+- [ ] Jardim, mochila entre expedições e baú (inventário permanente), oficina e receitas
+- [ ] Persistência do meio da partida no slot (no HTML, o slot guarda a expedição em curso)
 
 - **Fase B — meta-jogo**: slots v2 (3 slots, checksum, backup, exportar/importar), 11 modos de dificuldade, itens/inventário/mochila,
   equipamento (armas com perfil de tiro, armaduras, relíquias), consumíveis, recompensas dos chefes, Jardim completo

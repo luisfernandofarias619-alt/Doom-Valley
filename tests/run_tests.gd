@@ -64,6 +64,7 @@ func _run() -> void:
 	await _t_save_roundtrip()
 	await _t_contencao()
 	await _t_boss_flow()
+	await _t_fase_b()
 	await _t_fenda()
 	_out("== %d passaram, %d falharam ==" % [passes, fails])
 	var f := FileAccess.open("user://test_report.txt", FileAccess.WRITE)
@@ -371,3 +372,81 @@ func _t_fenda() -> void:
 	var dep := await until(func(): return fe.dep >= 1, 240)
 	check(dep, "sincronizar a âncora aumenta a profundidade")
 	check(SaveSystem.records().fenda >= 1, "recorde da Fenda é salvo")
+
+
+func _t_fase_b() -> void:
+	_out("[fase B: itens, modos, slots, equipamento e armas]")
+	check(ItemData.ITEMS.size() == 47, "catálogo com 47 itens (como no HTML)", str(ItemData.ITEMS.size()))
+	var bad := ""
+	for id in ItemData.ITEMS.keys():
+		var it: Dictionary = ItemData.ITEMS[id]
+		if not (it.has("n") and it.has("t") and it.has("d") and it.has("r")):
+			bad += id + " "
+		if it.t == "arma" and not it.has("wp"):
+			bad += id + "(wp) "
+		if it.t in ["arm", "rel"] and not it.has("st"):
+			bad += id + "(st) "
+		if it.has("boss") and not ["rhino", "dracula", "vesperon", "illuminati", "anomalia", "espelho"].has(it.boss):
+			bad += id + "(boss) "
+	check(bad == "", "itens com campos obrigatórios e chefes válidos", bad)
+	check(Modes.ORDER.size() == 11 and Modes.DATA.size() == 11, "11 modos de dificuldade")
+	check(is_equal_approx(Modes.get_mode("facil").ehp, 0.7) and is_equal_approx(Modes.get_mode("facil").xp, 1.25), "Fácil: vida 70% e XP ×1,25")
+	check(is_equal_approx(Modes.incoming(Modes.get_mode("hardcore"), 100.0, 10.0), 12.5), "Hardcore: o Nick recebe 25% a mais de dano")
+	check(is_equal_approx(Modes.incoming(Modes.get_mode("baby"), 50.0, 1000.0), 49.0), "Baby Mode: a vida nunca chega a zero")
+	check(is_equal_approx(Modes.incoming(Modes.get_mode("onehit"), 80.0, 1.0), 81.0), "One Hit: qualquer dano é fatal")
+	var e := Enemy.new(0, 0, "basic")
+	Modes.apply_enemy(Modes.get_mode("facil"), e)
+	check(e.max_hp == 28.0 and e.hp == 28.0, "Fácil: inimigo com 40 de vida passa a ter 28", "hp=%s" % e.hp)
+	var st := Equipment.stats({"arm": "placas", "rel": ["ima", "bateria"]})
+	check(is_equal_approx(st.hp, 30.0) and is_equal_approx(st.spd, 0.95) and st.mag == 1 and is_equal_approx(st.stm, 40.0), "equipamento: placas + ímã + bateria somam os bônus")
+	check(Equipment.weapon("dispersor").n == 2 and is_equal_approx(Equipment.weapon("dispersor").dm, 0.6), "Dispersor: 2 projéteis extras e 40% menos dano")
+	check(Equipment.weapon("pulsor").is_empty() and Equipment.weapon("kit").is_empty(), "arma padrão não altera o disparo; consumível não é arma")
+	# slots: gravar, ler, cópia de segurança, exportar e importar
+	SlotStore.delete(3)
+	check(SlotStore.write(3, SlotStore.new_slot("facil")), "gravar o slot 3")
+	check(SlotStore.write(3, SlotStore.new_slot("facil")), "segunda gravação cria a cópia de segurança")
+	var r := SlotStore.read(3)
+	check(r.st == "ok" and r.d.mode == "facil" and r.d.equip.arma == "pulsor", "ler o slot 3 de volta")
+	var txt := SlotStore.export_text(3)
+	var f := FileAccess.open(SlotStore.path(3), FileAccess.WRITE)
+	f.store_string(txt.replace("facil", "dificil"))
+	f = null
+	var r2 := SlotStore.read(3)
+	check(r2.st == "ok" and r2.get("rec", 0) == 1 and r2.d.mode == "facil", "slot adulterado cai para a cópia de segurança")
+	check(SlotStore.import_text(3, txt) == "", "importar um save exportado")
+	check(SlotStore.import_text(3, txt.replace("facil", "dificil")) == "arquivo alterado ou corrompido", "importar um arquivo adulterado é recusado")
+	SlotStore.delete(3)
+	check(SlotStore.read(3).st == "vazio", "apagar o slot deixa o slot vazio")
+	# partida com slot: equipamento e modo do slot valem na partida
+	var sd := SlotStore.new_slot("facil")
+	sd.equip.arma = "dispersor"
+	sd.equip.arm = "placas"
+	SlotStore.write(2, sd)
+	check(game.start_slot(2) == "", "começar uma partida no slot 2")
+	check(game.mode.id == "facil" and game.equip.arma == "dispersor", "a partida usa o modo e a arma do slot")
+	check(is_equal_approx(game.player.max_hp, 130.0), "placas dão +30 de vida máxima na partida", "max=%s" % game.player.max_hp)
+	game.enemies.clear()
+	game.projectiles.clear()
+	var aim_before: String = Settings.s.aim
+	Settings.s.aim = "auto"   # disparo automático: o teste não depende da mira do jogador
+	game.player.last_attack = -1e9
+	game.player.projectiles = 1
+	var foe := Enemy.new(game.player.x + 100.0, game.player.y, "basic")
+	game.enemies.append(foe)
+	game._fire()
+	check(game.projectiles.size() == 3, "Dispersor dispara 3 projéteis (1 + 2)", "n=%d" % game.projectiles.size())
+	check(game.projectiles.size() > 0 and is_equal_approx(game.projectiles[0].dm6, 0.6), "projétil do Dispersor carrega 60% do dano")
+	Settings.s.aim = aim_before
+	game.enemies.clear()
+	game.projectiles.clear()
+	# Hardcore: morte apaga o slot
+	SlotStore.delete(2)
+	SlotStore.write(2, SlotStore.new_slot("hardcore"))
+	game.start_slot(2)
+	game.end_game()
+	check(SlotStore.read(2).st == "vazio" and game.slot_n == 0, "Hardcore: morrer apaga o slot para sempre")
+	main.ui.over_scr.visible = false
+	# volta ao Classic normal, sem slot
+	game.start_classic()
+	check(game.slot_n == 0 and game.mode.id == "classico", "partida rápida volta ao Classic sem slot")
+	await frames(1)

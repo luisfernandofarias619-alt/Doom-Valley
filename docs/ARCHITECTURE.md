@@ -20,6 +20,9 @@ res://
 │   ├── bosses/                   # framework + um script por chefe + Anomalia 3D
 │   ├── world/                    # ArenaSystem, um tema por arena, Fenda, fundos de setor
 │   ├── data/atlas_data.gd        # tabelas geradas (atlas, quadros, faixas)
+│   ├── data/items.gd  modes.gd   # catálogo de 47 itens e os 11 modos de dificuldade
+│   ├── progression/slot_store.gd # slots v2 (checksum, backup, exportar/importar)
+│   ├── combat/equipment.gd       # bônus de equipamento e perfis de arma
 │   ├── ui/ui.gd                  # toda a interface em Control/Containers/Theme
 │   └── utilities/                # Draw (primitivas de canvas), PixelArt (Image), Lcg
 └── tests/                        # suíte funcional, capturas, carga

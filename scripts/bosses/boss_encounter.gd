@@ -164,9 +164,9 @@ func boss_dead(e: Enemy) -> void:
 func _defeated(i: int, n: String) -> void:
 	var id: String = BD[i].id
 	if id == "rhino":
-		g.flags.roll = true
+		g.grant("roll")
 	if id == "dracula":
-		g.flags.parry = true
+		g.grant("parry")
 	g.cine.stop()
 	g.mir_x = false
 	Events.boss_defeated.emit(i, n)
